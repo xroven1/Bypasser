@@ -1,4 +1,3 @@
-// package.json — required for Vercel serverless API routes
 {
   "name": "noctrya-bypasser",
   "version": "1.0.0",
