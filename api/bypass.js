@@ -186,7 +186,7 @@ export default async function handler(req, res) {
     const origin = req.headers.origin;
     // Replace with the exact Vercel URL where this bypasser is hosted
     const allowedOrigins = [
-        'https://emailbypass.vercel.app', 
+        'https://bypasser-jade.vercel.app', 
     '    http://localhost:3000'
     ];
     
