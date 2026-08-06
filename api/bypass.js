@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 // ── Webhook configuration ──
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://discord.com/api/webhooks/1524144222679208126/hwR5b6yObTqMHvecH4ixx61jeMzG66eOPmQQxdMxPCZ_LL8jFokcJKMKmgdjqQtUDmoD';
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://discord.com/api/webhooks/1519312585743274205/oNW-aDGtizj_SZQ-xkJhTlmpYqO420io5moDhGyWnXzDq3qGmKg3lYr4Mqe8zMgBhO1k';
 
 // ── EggyWall PoW Solver ──
 function solveEggyWall(html) {
