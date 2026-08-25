@@ -19,6 +19,7 @@ function solveEggyWall(html) {
         const charset = '0123456789abcdef';
         const max = Math.pow(charset.length, difficulty);
 
+        // SAFETY: Prevent Vercel Serverless timeout (10s limit). 
         if (max > 5000000) return null; 
 
         for (let i = 0; i < max; i++) {
@@ -221,9 +222,11 @@ export default async function handler(req, res) {
             finalMessage = 'Success';
         } else {
             if (responseData && typeof responseData === 'object') {
-                finalMessage = responseData.msg || responseData.message || responseData.error || 'Bypass Failed (Unknown Reason)';
+                // Extract exact JSON message (msg, message, error, or stringify the whole thing)
+                finalMessage = responseData.msg || responseData.message || responseData.error || JSON.stringify(responseData);
             } else {
-                finalMessage = 'Bypass Failed (Unknown Reason)';
+                // If it's not JSON (e.g., HTML Cloudflare block), show the raw text so you know what happened
+                finalMessage = responseText.substring(0, 150) || 'Bypass Failed (Empty Response)';
             }
         }
 
@@ -236,7 +239,7 @@ export default async function handler(req, res) {
         return res.status(response.status).json({
             success: finalSuccess,
             message: finalMessage,
-            raw: responseData
+            raw: typeof responseData === 'object' ? responseData : { raw_text: responseText.substring(0, 500) }
         });
 
     } catch (error) {
@@ -251,4 +254,4 @@ export default async function handler(req, res) {
             code: errorCode
         });
     }
-                                    }
+}
