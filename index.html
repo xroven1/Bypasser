@@ -222,9 +222,11 @@
         if (contentType && contentType.includes('application/json')) {
           data = await res.json();
           
-          const displayMessage = data.message || "Unknown error occurred";
+          // Extract the exact message cleanly (handles message, error, details, or raw)
+          const displayMessage = data.message || data.error || data.details || "Unknown error occurred";
           responseEl.innerText = displayMessage;
           
+          // Dynamic UI Update based on success
           if (data.success) {
             responseEl.classList.add('success');
             showToast("✅ Bypass Successful");
