@@ -222,8 +222,8 @@
         if (contentType && contentType.includes('application/json')) {
           data = await res.json();
           
-          // Extract the exact message cleanly (handles message, error, details, or raw)
-          const displayMessage = data.message || data.error || data.details || "Unknown error occurred";
+          // Extract the exact message cleanly (prioritizing 'details' to see actual Node errors)
+          const displayMessage = data.details || data.message || data.error || "Unknown error occurred";
           responseEl.innerText = displayMessage;
           
           // Dynamic UI Update based on success
